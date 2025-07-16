@@ -22,32 +22,7 @@ Hiện nay, các phong trào tập thể dục thể thao đang ngày càng phá
 ---
 
 ## Quy Trình Phân Tích
-+----------------------------+
-| Đọc và tiền xử lý dữ liệu|
-+------------+--------------+
-|
-v
-+----------------------------+
-| Phân tích thống kê mô tả |
-+------------+--------------+
-|
-v
-+----------------------------+
-| Kiểm định ANOVA |
-| (so sánh giữa các nhóm) |
-+------------+--------------+
-|
-v
-+----------------------------+
-| Xây dựng mô hình ML |
-| Logistic, LDA, QDA, RF |
-+------------+--------------+
-|
-v
-+----------------------------+
-| Đánh giá & Kết luận |
-+----------------------------+
-
+<pre lang="markdown"> ```text Quy trình phân tích: 1. Đọc & tiền xử lý dữ liệu ↓ 2. Phân tích thống kê mô tả ↓ 3. Kiểm định ANOVA (so sánh các nhóm) ↓ 4. Xây dựng mô hình ML (Logistic, LDA, QDA, RF) ↓ 5. Đánh giá & Kết luận ``` </pre>
 
 ---
 
