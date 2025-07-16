@@ -1,0 +1,752 @@
+---
+title:
+author:
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+::: {style="text-align: center;"}
+# Project - Body performance Data
+:::
+
+::: {style="text-align: justify;"}
+Hiện nay các phong trào tập thể thao đang ngày một phát triển, thu hút nhiều nhóm tuổi và giới tính. Dữ liệu bodyPerformance.csv chứa thông tin của 13,393 người tham gia tập thể thao tại Hàn Quốc, với 12 biến như sau:
+
+-   age - độ tuổi (từ 20 tới 64);
+
+-   gender - giới tính (F: nữ, M: nam);
+
+-   height_cm - chiều cao (đơn vị: cm);
+
+-   weight_kg - cân nặng (đơn vị: kg);
+
+-   body fat\_% - phần trăm mỡ cơ thể (%);
+
+-   diastolic - huyết áp tâm trương (phút);
+
+-   systolic - huyết áp tâm thu (phút);
+
+-   gripForce - lực kẹp;
+
+-   sit and bend forward_cm - ngồi và gập người về phía trước;
+
+-   sit-ups counts - số lần gập bụng;
+
+-   broad jump_cm - nhảy xa (đơn vị: cm);
+
+-   class - phân lớp hiệu suất (A: tốt nhất, B,C,D).
+
+Hãy xử lý dữ liệu này để giúp cho các chuyên gia sức khỏe biết được hiệu quả của việc tập thể dục, và các yếu tố ảnh hưởng tới hiệu quả.
+
+-   Load dữ liệu
+
+```{r}
+# Khai báo các thư viện
+library(tidyverse)
+library(readr)
+
+# Đọc file csv
+data <- read.csv(file = "D:/bodyPerformance.csv")
+data <- data |> janitor::clean_names() # Chuyển tên các cột về chữ thường
+glimpse(data)
+```
+
+-   Bảng tóm tắt và khái quát về dữ liệu
+
+```{r}
+library(dplyr)
+# Tính toán thống kê tóm tắt
+summary_table <- data %>%
+  reframe(
+    Bien = c("age", "height_cm", "weight_kg", "body_fat", "diastolic", "systolic", "grip_force", "sit_and_bend_forward_cm", "sit_ups_counts", "broad_jump_cm"),
+    n = n(),
+    Trung_binh = c(mean(age), mean(height_cm), mean(weight_kg), mean(body_fat), mean(diastolic), mean(systolic), 
+                   mean(grip_force), mean(sit_and_bend_forward_cm), mean(sit_ups_counts),   mean(broad_jump_cm)),
+    Trung_vi = c(median(age), median(height_cm), median(weight_kg), median(body_fat), median(diastolic), median(systolic),
+                 median(grip_force), median(sit_and_bend_forward_cm), median(sit_ups_counts), median(broad_jump_cm)),
+    Min = c(min(age), min(height_cm), min(weight_kg), min(body_fat), min(diastolic), min(systolic),
+            min(grip_force), min(sit_and_bend_forward_cm), min(sit_ups_counts), min(broad_jump_cm)),
+    Max = c(max(age), max(height_cm), max(weight_kg), max(body_fat), max(diastolic), max(systolic),
+            max(grip_force), max(sit_and_bend_forward_cm), max(sit_ups_counts), max(broad_jump_cm)),
+  )
+
+# Hiển thị bảng
+library(knitr)
+kable(summary_table, col.names = c("Biến", "Số lượng", "Trung bình", "Trung vị", "Min", "Max"), align = "c")
+```
+
+-   Kiểm tra và xóa các giá trị outliers
+
+```{r}
+remove_outliers <- function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  x[x >= lower_bound & x <= upper_bound]
+}
+
+# Remove outliers within each class
+data <- data %>%
+  group_by(class) %>%
+  filter(weight_kg >= quantile(weight_kg, 0.25) - 1.5 * IQR(weight_kg) & 
+           weight_kg <= quantile(weight_kg, 0.75) + 1.5 * IQR(weight_kg) &
+           height_cm >= quantile(height_cm, 0.25) - 1.5 * IQR(height_cm) & 
+           height_cm <= quantile(height_cm, 0.75) + 1.5 * IQR(height_cm) &
+           body_fat >= quantile(body_fat, 0.25) - 1.5 * IQR(body_fat) &
+           body_fat <= quantile(body_fat, 0.75) + 1.5 * IQR(body_fat) &
+           diastolic >= quantile(diastolic, 0.25) - 1.5 * IQR(diastolic) &
+           diastolic <= quantile(diastolic, 0.75) + 1.5 * IQR(diastolic) &
+           systolic >= quantile(systolic, 0.25) - 1.5 * IQR(systolic) &
+           systolic <= quantile(systolic, 0.75) +1.5*IQR(systolic) &
+           grip_force >= quantile(grip_force, 0.25) -1.5*IQR(grip_force) &
+           grip_force <= quantile(grip_force, 0.75) +1.5*IQR(grip_force) &
+           sit_and_bend_forward_cm >= quantile(sit_and_bend_forward_cm, 0.25) - 1.5*IQR(sit_and_bend_forward_cm) &
+           sit_and_bend_forward_cm <= quantile(sit_and_bend_forward_cm, 0.75) +1.5*IQR(sit_and_bend_forward_cm) &
+           sit_ups_counts >= quantile(sit_ups_counts, 0.25) -1.5*IQR(sit_ups_counts) &
+           sit_ups_counts <= quantile(sit_ups_counts, 0.75) +1.5*IQR(sit_ups_counts) &
+           broad_jump_cm >= quantile(broad_jump_cm, 0.25) -1.5*IQR(broad_jump_cm) &
+           broad_jump_cm <= quantile(broad_jump_cm, 0.75) +1.5*IQR(broad_jump_cm) 
+  )
+```
+
+Việc lọc outliers cho toàn bộ dữ liệu mà không theo nhóm class làm cho dữ liệu của class D bị sai sót. Do đó, ta lọc outliers dựa trên dữ liệu của mỗi nhóm, việc này giúp giữ nguyên được tính chất của dữ liệu ban đầu.
+
+-   Vẽ boxplot so sánh các biến theo phân lớp hiệu suất (class)
+
+```{r}
+library(ggplot2)
+
+# Danh sách các biến cần so sánh
+variables <- c("age", "height_cm", "weight_kg", "body_fat", "diastolic", "systolic", 
+               "grip_force", "sit_and_bend_forward_cm", "sit_ups_counts", "broad_jump_cm")
+
+# Tạo boxplot cho từng biến
+plots <- lapply(variables, function(var) {
+  ggplot(data, aes_string(x = "class", y = var, fill = "class")) +
+    geom_boxplot() +
+    labs(title = paste("Distribution of", var, "by Class"),
+         x = "Class", y = var) +
+    theme_minimal()
+})
+
+# Hiển thị các biểu đồ
+for (plot in plots) {
+  print(plot)
+}
+```
+
+-   Bảng tóm tắt và khái quát dữ liệu phân theo lớp hiệu suất
+
+```{r}
+custom_summary <- function(x) {
+  data.frame(
+    n = length(x),
+    mean = mean(x, na.rm = TRUE),
+    sd = sd(x, na.rm = TRUE),
+    median = median(x, na.rm = TRUE),
+    trimmed = mean(x, trim = 0.1, na.rm = TRUE),
+    mad = mad(x, na.rm = TRUE),
+    min = min(x, na.rm = TRUE),
+    max = max(x, na.rm = TRUE),
+    range = max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
+  )
+}
+
+grouped <- split(data[, -c(2, 12)], data$class)
+result <- lapply(grouped, function(group) {
+  sapply(group, custom_summary)
+})
+
+print(result)
+```
+
+Nhóm A (hiệu suất cao nhất) có các đặc điểm nổi bật: Tuổi trẻ hơn, cân nặng và mỡ cơ thể thấp hơn, khả năng sức mạnh (lực kẹp, nhảy xa), sức bền (gập bụng), và độ dẻo dai cao hơn đáng kể so với các nhóm khác. Ngược lại, nhóm D (hiệu suất thấp nhất) có tuổi cao hơn, cân nặng và mỡ cơ thể lớn hơn, cùng với các chỉ số thể chất thấp hơn.
+
+-   Vẽ ma trận tương quan
+
+```{r}
+data_hm <- data
+
+# Chuyển đổi cột gender thành 0 và 1
+ data_hm$gender <- ifelse(data$gender == "M", 1, 0)
+
+# Chuyển đổi cột class thành dạng số
+ data_hm$class <- as.numeric(factor(data$class, levels = c("D", "C", "B", "A")))
+
+library(reshape2)
+cor_matrix <- cor(data_hm %>% select_if(is.numeric)) # Chọn các biến số
+ggplot(melt(cor_matrix), aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, 
+                       limit = c(-1, 1), space = "Lab", 
+                       name = "Correlation") +
+  theme_minimal() +
+  labs(title = "Ma trận tương quan", x = "", y = "") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+```
+
+Ma trận tương quan cho thấy class có mối quan hệ tương quan mạnh với các yếu tố như broad_jump_cm, hít đất sit_ups_counts, sit_and_bend_forward_cm, và grip_force, trong khi đó lại tương quan yếu với age, weight_kg, và body_fat. Ngoài ra, cân nặng và tỷ lệ mỡ cơ thể có tương quan dương rất mạnh, còn huyết áp tâm thu và tâm trương cũng liên hệ chặt chẽ với nhau. Điều này nhấn mạnh rằng các yếu tố về sức mạnh, độ bền và dẻo dai là những chỉ số quan trọng đối với hiệu suất, trong khi mỡ cơ thể và tuổi cao thường làm giảm hiệu suất.
+
+-   Tóm tắt thống kê
+
+```{r}
+# Tóm tắt thống kê theo giới tính
+data %>% group_by(gender) %>%
+  summarise(across(c(age, height_cm, weight_kg, body_fat, diastolic, systolic, grip_force, sit_and_bend_forward_cm, sit_ups_counts, broad_jump_cm), mean, na.rm = TRUE))
+
+# Tóm tắt thống kê theo từng nhóm tuổi
+library(dplyr)
+
+# Chia age thành 3 nhóm: 20-30, 31-45, 46-64
+data <- data %>%
+  mutate(age_group = case_when(
+    age >= 20 & age <= 34 ~ "20-34",
+    age >= 35 & age <= 49 ~ "35-49",
+    age >= 50 & age <= 64 ~ "50-64",
+    TRUE ~ "Unknown"
+  ))
+data %>% 
+  group_by(age_group) %>%
+  summarise(across(c(height_cm, weight_kg, body_fat, diastolic, systolic, grip_force, 
+                     sit_and_bend_forward_cm, sit_ups_counts, broad_jump_cm), 
+                   mean, na.rm = TRUE))
+
+
+# Tóm tắt theo lớp hiệu suất
+data %>% group_by(class) %>%
+  summarise(across(c(age, height_cm, weight_kg, body_fat, diastolic, systolic, grip_force, sit_and_bend_forward_cm, sit_ups_counts, broad_jump_cm), mean, na.rm = TRUE))
+```
+
+-   Tóm tắt thống kê theo giới tính: Nam có ưu thế về chiều cao (173.22 cm), cân nặng (73.44 kg), lực nắm tay (43.43 kg), huyết áp (tâm thu 133.81 mmHg, tâm trương 80.67 mmHg), sức bền (44.99 lần gập bụng) và khả năng nhảy xa (211.71 cm). Trong khi đó, nữ vượt trội hơn về tỷ lệ mỡ cơ thể (28.37%), độ dẻo dai (18.83 cm) và có huyết áp thấp hơn (tâm thu 124.03 mmHg, tâm trương 75.68 mmHg). Sự khác biệt này phản ánh đặc điểm sinh lý giữa hai giới.
+
+-   Tóm tắt thống kê theo từng nhóm tuổi: Nhóm tuổi 20-34 có ưu thế về chiều cao (170.40 cm), cân nặng (68.07 kg), lực nắm tay (38.43 kg), độ dẻo dai (15.75 cm), sức bền (46.09 lần gập bụng) và khả năng nhảy xa (203.30 cm). Trong khi đó, nhóm tuổi 50-64 có tỷ lệ mỡ cơ thể cao nhất (26.14%), huyết áp cao nhất (tâm thu 134.77 mmHg, tâm trương 80.53 mmHg) nhưng lực nắm tay, sức bền, và khả năng nhảy xa đều giảm. Sự khác biệt này phản ánh ảnh hưởng của tuổi tác đến thể chất và sức khỏe.
+
+-   Tóm tắt thống kê theo lớp hiệu suất: Nhóm hiệu suất cao nhất (lớp A) có các chỉ số thể chất vượt trội như lực nắm tay (38.62 kg), khả năng nhảy xa (202.87 cm), sức bền (47.91 lần gập bụng) và độ dẻo dai (21.29 cm). Trong khi đó, nhóm hiệu suất thấp nhất (lớp D) có tỷ lệ mỡ cơ thể cao nhất (27.62%), huyết áp cao nhất (tâm thu 131.10 mmHg, tâm trương 80.17 mmHg), nhưng lực nắm tay, độ dẻo dai, sức bền và khả năng nhảy xa đều thấp hơn đáng kể. Điều này cho thấy hiệu suất giảm có thể liên quan đến tỷ lệ mỡ cơ thể cao và sức khỏe tim mạch kém.
+
+# Kiểm định ANOVA cho các biến số học
+
+```{r}
+# Lấy danh sách các biến số học trong dữ liệu
+numeric_vars <- names(data)[sapply(data, is.numeric)]  
+numeric_vars <- numeric_vars[numeric_vars != "class"] 
+numeric_vars <- numeric_vars[numeric_vars != "gender"] 
+
+# Thực hiện kiểm định ANOVA cho từng biến số học
+for (var in numeric_vars) {
+  formula <- as.formula(paste(var, "~ class"))
+  anova_result <- aov(formula, data = data)
+  print(paste("ANOVA result for", var))
+  print(summary(anova_result))
+  cat("\n\n")
+}
+```
+
+p-value của các biến định lượng đều nhỏ hơn 0.05. Do đó, với mỗi biến định lượng thì có ít nhất một nhóm hiệu suất khác với trung bình các nhóm còn lại.
+
+# Xây dựng và đánh giá mô hình hồi quy logistic đa biến
+## Multinominal
+* Kiểm tra dữ liệu
+```{r}
+# Kiểm tra giá trị thiếu
+colSums(is.na(data))
+
+# Chuyển đổi các biến phân loại thành factor
+data$gender <- as.factor(data$gender)
+data$class <- as.factor(data$class)
+
+# Kiểm tra lại cấu trúc sau khi chuyển đổi
+str(data)
+```
+
+* Biểu đồ phân phối biến phân loại class
+```{r}
+library(plotly)
+bieu_do_class <- ggplot(data, aes(x = class)) +
+  geom_bar(aes(fill = class), color = "black", stat = "count") +
+  labs(title = "Bar Plot of Class Counts", x = "Class", y = "Frequency") +
+  theme_minimal()
+
+
+ggplotly(bieu_do_class)
+```
+
+* Tách dữ liệu thành tập huấn luyện và kiểm tra
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(data), 0.7 * nrow(data))
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+* Xây dựng mô hình multinominal logistic
+```{r}
+library(nnet)  # Thư viện chứa hàm multinom()
+
+data_md <- multinom(formula = class ~ age + weight_kg + height_cm + body_fat + diastolic + systolic + grip_force + sit_and_bend_forward_cm + sit_ups_counts + broad_jump_cm + gender,
+data = train_data, maxit = 1500)
+```
+
+* Dự đoán và đánh giá trên tập kiểm tra
+```{r}
+# Dự đoán trên tập kiểm tra
+pred <- predict(data_md, newdata = test_data)
+
+# Độ chính xác
+accuracy <- mean(pred == test_data$class)
+print(paste("Accuracy:", accuracy))
+# Ma trận nhầm lẫn
+conf_matrix <- table(Predicted = pred, Actual = test_data$class)
+print(conf_matrix)
+```
+
+* Kiểm tra giá trị p-value
+```{r}
+z_values <- summary(data_md)$coefficients / summary(data_md)$standard.errors
+p_values <- (1 - pnorm(abs(z_values), 0, 1)) * 2
+print(p_values)
+```
+
+Dùng nhóm A làm nhóm tham chiếu cho các nhóm B, C và D so sánh, đồng thời nhìn vào bảng số liệu ta có thể thấy rằng:
+
+-   Biến height_cm trong nhóm B có p_val \> 0.05.
+
+-   Biến body_fat trong nhóm B, C đều có p_val \> 0.05
+
+-   Biến diastolic trong nhóm B, C có p_val \> 0.05.
+
+-   Biến systolic trong nhóm B đều có p_val \> 0.05.
+
+Qua việc xử lý như trên, có thể thấy biến body_fat và biến diastolic không có ảnh hưởng gì nhiều đến hiệu suất của mô hình phân loại biến class.
+
+Còn các biến còn lại cũng không có ảnh hưởng hoặc sẽ ảnh hưởng ít đến quá trình thống kê và đưa ra dự đoán nên có thể loại bỏ các biến này trong mô hình.
+
+Nhìn chung, các biến này đều liên quan đến nhóm B.
+
+* Huấn luyện lại mô hình multinomial logistic regression
+```{r}
+library(nnet)
+data_md <- multinom(
+  formula = class ~ age + weight_kg + grip_force + 
+    sit_and_bend_forward_cm + sit_ups_counts + broad_jump_cm + gender,
+  data = train_data,
+  maxit = 1500
+)
+
+# Dự đoán trên tập kiểm tra
+pred <- predict(data_md, newdata = test_data)
+
+# Tính độ chính xác
+accuracy <- mean(pred == test_data$class)
+print(paste("Accuracy:", accuracy))
+
+# Tạo ma trận nhầm lẫn
+conf_matrix <- table(Predicted = pred, Actual = test_data$class)
+
+# Kiểm tra xem conf_matrix có đúng định dạng không
+if (!is.matrix(conf_matrix)) {
+  conf_matrix <- as.matrix(conf_matrix)
+}
+
+# In ma trận nhầm lẫn
+print("Confusion Matrix:")
+print(conf_matrix)
+```
+
+Sau khi loại bỏ các biến không ảnh hưởng thì hiệu suất là 0.618, so với hiệu suất lúc ban đầu là 0.619, hiệu suất của mô hình không giảm nhiều so với ban đầu. Điều này cho thấy các biến đã bị loại bỏ thật sự không ảnh hưởng đáng kể tới hiệu suất của mô hình.
+
+* Hàm đánh giá đa lớp
+```{r}
+# Hàm đánh giá
+eval_multi_class <- function(conf_matrix) {
+  cc <- sum(diag(conf_matrix)) # Số dự đoán đúng
+  sc <- sum(conf_matrix)       # Tổng số mẫu
+  
+  pp <- colSums(conf_matrix) # Tổng dự đoán cho mỗi lớp
+  tt <- rowSums(conf_matrix) # Tổng thực tế cho mỗi lớp
+  
+  precision <- diag(conf_matrix) / pp
+  recall <- diag(conf_matrix) / tt
+  f1_scores <- 2 * precision * recall / (precision + recall)
+  
+  macro_precision <- mean(precision, na.rm = TRUE)
+  macro_recall <- mean(recall, na.rm = TRUE)
+  macro_f1 <- mean(f1_scores, na.rm = TRUE)
+  
+  accuracy <- cc / sc
+  
+  expected <- (pp * tt) / sc
+  kappa <- (cc - sum(expected)) / (sc - sum(expected))
+  
+  return(list(
+    Precision = precision,
+    Recall = recall,
+    F1_Scores = f1_scores,
+    Macro_Precision = macro_precision,
+    Macro_Recall = macro_recall,
+    Macro_F1 = macro_f1,
+    Accuracy = accuracy,
+    Kappa = kappa
+  ))
+}
+
+# Gọi hàm đánh giá
+results <- eval_multi_class(conf_matrix)
+
+# Hiển thị kết quả đánh giá
+print("Evaluation Metrics:")
+print(results)
+```
+
+Mô hình hoạt động tốt với các lớp A và D, với F1-Score lần lượt là 0.721 và 0.758, nhưng hiệu suất còn hạn chế ở các lớp B (F1-Score 0.474) và C (F1-Score 0.519). Độ chính xác tổng thể đạt 61.80%, các chỉ số tổng hợp như Macro Precision (0.618), Macro Recall (0.618), và Macro F1 (0.618) cho thấy mô hình duy trì sự cân đối nhưng chưa thực sự vượt trội. Chỉ số Kappa (0.490) phản ánh mức độ đồng thuận trung bình giữa mô hình và dữ liệu thực tế, tốt hơn dự đoán ngẫu nhiên nhưng vẫn cần cải thiện.
+
+* Vẽ biểu đồ tương quan cho ma trận nhầm lẫn
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Heatmap ma trận nhầm lẫn
+conf_matrix <- melt(as.matrix(conf_matrix))
+ggplot(conf_matrix, aes(x = Predicted, y = Actual, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value), color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted", y = "Actual")
+```
+
+Heatmap của ma trận nhầm lẫn cho thấy mô hình hoạt động tốt nhất trên Class A và Class D, với số lượng phân loại đúng lần lượt là 739 và 719. Tuy nhiên, vẫn xảy ra nhầm lẫn đáng kể, đặc biệt giữa Class A với Class B (202 mẫu nhầm) và giữa Class C với Class B (291 mẫu nhầm). Class B và Class C có sự nhầm lẫn lẫn nhau khá nhiều, cho thấy các đặc trưng phân biệt giữa hai lớp này chưa rõ ràng. Điều này có thể là nguyên nhân dẫn đến sự chênh lệch trong hiệu suất phân loại giữa các lớp.
+
+## LDA
+* Huấn luyện mô hình LDA
+```{r}
+library(MASS)
+
+data_md <- lda(formula = class ~ age + weight_kg + height_cm + body_fat +systolic + diastolic + grip_force + sit_and_bend_forward_cm + sit_ups_counts + broad_jump_cm + gender,
+data = train_data, maxit = 1500)
+
+data_md
+```
+
+* Dự đoán và đánh giá trên tập kiểm tra
+```{r}
+# Dự đoán trên dữ liệu
+predictions <- predict(data_md, newdata = test_data)
+
+# Tạo ma trận nhầm lẫn
+conf_matrix <- table(Predicted = predictions$class, Actual = test_data$class)
+print(conf_matrix)
+
+# Tính toán độ chính xác
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+cat("Accuracy:", accuracy, "\n")
+```
+
+* Hệ số của mô hình LDA
+```{r}
+
+data_md$scaling  # Các hệ số của từng biến độc lập trong các hàm phân biệt
+data_md$svd
+```
+
+* Hàm đánh giá đa lớp
+```{r}
+# Gọi hàm đánh giá
+results <- eval_multi_class(conf_matrix)
+
+# Hiển thị kết quả đánh giá
+print("Evaluation Metrics:")
+print(results)
+```
+
+Kết quả đánh giá mô hình LDA cho thấy độ chính xác tổng thể đạt 61.22%, phản ánh hiệu suất trung bình trong việc phân loại dữ liệu. Macro Precision, Recall, và F1-Score lần lượt đạt 61.26%, 61.72%, và 61.42%, cho thấy sự nhất quán giữa các chỉ số. Tuy nhiên, hiệu suất phân loại khác biệt đáng kể giữa các lớp. Lớp A và D có F1-Score lần lượt là 70.66% và 76.37%, thể hiện khả năng phân loại tốt. Trong khi đó, lớp B có hiệu suất thấp nhất với F1-Score chỉ đạt 44.94%, cho thấy mô hình gặp khó khăn trong việc phân biệt lớp này. Giá trị Kappa là 0.48, chỉ ra rằng mô hình có mức độ phù hợp trung bình so với một mô hình dự đoán ngẫu nhiên.
+
+* Vẽ biểu đồ tương quan cho ma trận nhầm lẫn
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Heatmap ma trận nhầm lẫn
+conf_matrix <- melt(as.matrix(conf_matrix))
+ggplot(conf_matrix, aes(x = Predicted, y = Actual, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value), color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted", y = "Actual")
+```
+
+Heatmap của ma trận nhầm lẫn cho thấy mô hình hoạt động tốt nhất trên Class A và Class D, với số lượng phân loại đúng lần lượt là 725 và 700. Tuy nhiên, vẫn xảy ra nhầm lẫn đáng kể, đặc biệt giữa Class A với Class B (265 mẫu nhầm) và giữa Class C với Class B (189 mẫu nhầm). Class B và Class C có sự nhầm lẫn lẫn nhau khá nhiều, cho thấy các đặc trưng phân biệt giữa hai lớp này chưa rõ ràng. Điều này có thể là nguyên nhân dẫn đến sự chênh lệch trong hiệu suất phân loại giữa các lớp.
+
+* Kiểm tra tính đồng nhất của ma trận hiệp phương sai (Box's M Test)
+```{r}
+x <- train_data[, c("age", "weight_kg", "height_cm", "body_fat", "grip_force", "diastolic", "systolic",
+                    "sit_and_bend_forward_cm", "sit_ups_counts", 
+                    "broad_jump_cm")]
+x$gender <- as.numeric(factor(train_data$gender))  # Chuyển gender thành số (1 cho M, 0 cho F)
+
+# Biến phụ thuộc (nhóm phân loại)
+y <- train_data$class
+
+# Thực hiện Box's M Test
+library(biotools)
+box_m_test <- boxM(as.matrix(x), grouping = y)
+
+# In kết quả
+print(box_m_test)
+```
+
+Do p_vals \< 0.05 nên không thể cho rằng giả định các nhóm đồng nhất phương sai với nhau. Việc không thể chắc chắn rằng các nhóm đồng nhất phương sai với nhau thì có thể gây ra ảnh hưởng về hiệu quả dự đoán của mô hình LDA.
+
+* Phân tích phân phối các biến độc lập
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Danh sách các biến độc lập
+numeric_vars <- c("age", "height_cm", "weight_kg", "body_fat", "diastolic", 
+                  "systolic", "grip_force", "sit_and_bend_forward_cm", 
+                  "sit_ups_counts", "broad_jump_cm")
+
+# Chuyển đổi dữ liệu từ wide format sang long format để dễ dàng vẽ
+data_long <- melt(data, id.vars = "class", measure.vars = numeric_vars)
+
+# Vẽ phân phối cho tất cả các biến độc lập
+ggplot(data_long, aes(x = value, fill = as.factor(class))) + 
+  geom_histogram(position = "dodge", bins = 30) + 
+  facet_wrap(~ variable, scales = "free") + # Tạo các biểu đồ con cho mỗi biến
+  labs(title = "Distribution of Independent Variables by Class", x = "Value", y = "Count") +
+  theme_minimal()
+```
+
+Qua việc kiểm tra phân phối chuẩn của từng nhóm dữ liệu loại A, B, C và D cho thấy rằng biến age, grip_force và broad_jump_cm không tuân theo phân phối chuẩn nên cũng ảnh hưởng đến việc phân loại của mô hình.
+
+Do việc sử dụng LDA có thể không đảm bảo độ chính xác, nên việc chuyển sang QDA là hợp lý hơn, vì QDA không yêu cầu giả định về sự đồng nhất phương sai và phân phối của dữ liệu.
+
+## QDA
+* Huấn luyện mô hình QDA
+```{r}
+qda_model <- qda(class ~ age + weight_kg + height_cm + body_fat + diastolic + systolic + grip_force + sit_and_bend_forward_cm + 
+                 sit_ups_counts + broad_jump_cm + gender, data = train_data)
+```
+
+-   Dự đoán trên tập kiểm tra
+
+```{r}
+# Dự đoán trên tập kiểm tra
+pred_qda <- predict(qda_model, newdata = test_data)$class
+# Tạo ma trận nhầm lẫn
+conf_matrix_qda <- table(Predicted = pred_qda, Actual = test_data$class)
+print(conf_matrix_qda)
+
+# Đánh giá mô hình
+accuracy_qda <- mean(pred_qda == test_data$class)
+cat("Accuracy:", accuracy_qda)
+```
+
+```{r}
+qda_model
+```
+
+Trong 4 nhóm, các biến age, height_cm, systolic, diastolic, và gender không có sự chênh lệch đáng kể (không quá 5%). Vì vậy, các biến này được loại bỏ để thực hiện lại mô hình.
+
+* Chạy lại mô hình sau khi bỏ đi 5 biến nêu trên
+```{r}
+qda_model <- qda(class ~ weight_kg + body_fat + grip_force + sit_and_bend_forward_cm + 
+                 sit_ups_counts + broad_jump_cm, data = train_data)
+# Dự đoán trên tập kiểm tra
+pred_qda <- predict(qda_model, newdata = test_data)$class
+
+# Tạo ma trận nhầm lẫn
+conf_matrix_qda <- table(Predicted = pred_qda, Actual = test_data$class)
+print(conf_matrix_qda)
+
+# Đánh giá mô hình
+accuracy_qda <- mean(pred_qda == test_data$class)
+cat("Accuracy:", accuracy_qda)
+```
+
+Kết quả chạy lại mô hình cho thấy việc loại bỏ các biến trên không hoàn toàn chính xác:
+
+-   Biến age: Mặc dù không có sự chênh lệch trong 4 nhóm A, B, C và D và có tương quan thấp với biến class, nhưng đồ thị phân phối cho thấy biến này không tuân theo phân phối chuẩn. Hơn nữa, trong đồ thị tương quan, age có mối quan hệ mạnh mẽ với hai biến sit_ups_counts và broad_jump_cm. Do đó, biến age đóng vai trò bổ trợ và không nên loại bỏ.
+
+-   Biến height_cm: Phân phối chuẩn nhưng có ảnh hưởng mạnh đến các biến khác trong ma trận tương quan và ít ảnh hưởng đến biến class. Điều này cho thấy khả năng xảy ra đa cộng tuyến, nên có thể loại bỏ biến này.
+
+-   Biến systolic và diastolic: Cả hai không có tương quan đáng kể với các biến khác và không có sự chênh lệch trung bình trong 4 nhóm A, B, C và D. Vì vậy, việc loại bỏ hai biến này là hợp lý.
+
+-   Biến gender: Là biến định tính phân biệt nam và nữ, cần giữ lại do biểu đồ heatmap cho thấy gender có ảnh hưởng đến các biến khác, tương tự như vai trò của biến age.
+
+* Thử nghiệm các biến độc lập khác với QDA
+```{r}
+qda_model <- qda(class ~ age + weight_kg + body_fat + grip_force + sit_and_bend_forward_cm + 
+                 sit_ups_counts + broad_jump_cm + gender, data = train_data)
+# Dự đoán trên tập kiểm tra
+pred_qda <- predict(qda_model, newdata = test_data)$class
+
+# Tạo ma trận nhầm lẫn
+conf_matrix_qda <- table(Predicted = pred_qda, Actual = test_data$class)
+print(conf_matrix_qda)
+
+# Đánh giá mô hình
+accuracy_qda <- mean(pred_qda == test_data$class)
+cat("Accuracy:", accuracy_qda)
+```
+
+Kết quả cho thấy khi sử dụng tất cả các biến, độ chính xác đạt 0,680. Tuy nhiên, sau khi loại bỏ ba biến height_cm, diastolic, và systolic, độ chính xác giảm nhẹ xuống 0,676. Điều này chứng tỏ các biến này không ảnh hưởng nhiều đến hiệu suất của mô hình.
+
+Ngoài ra, khi xét biến body_fat trong mô hình Multinomial Logistic, kết quả cho thấy biến này không có vai trò quan trọng trong việc phân loại các giá trị của biến class. Do đó, việc loại bỏ biến body_fat cũng có thể được cân nhắc để đơn giản hóa mô hình.
+
+* Chạy lại mô hình sau khi loại bỏ biến body_fat
+```{r}
+qda_model <- qda(class ~ age + weight_kg + grip_force + sit_and_bend_forward_cm + 
+                 sit_ups_counts + broad_jump_cm + gender, data = train_data)
+# Dự đoán trên tập kiểm tra
+pred_qda <- predict(qda_model, newdata = test_data)$class
+
+# Tạo ma trận nhầm lẫn
+conf_matrix_qda <- table(Predicted = pred_qda, Actual = test_data$class)
+print(conf_matrix_qda)
+
+# Đánh giá mô hình
+accuracy_qda <- mean(pred_qda == test_data$class)
+cat("Accuracy:", accuracy_qda)
+```
+
+Hiệu suất của mô hình chỉ giảm 0,4%, điều này cho thấy biến body_fat có thể gặp vấn đề đa cộng tuyến giống như biến height_cm và thực sự không ảnh hưởng đáng kể đến mô hình. Vì vậy, việc loại bỏ biến body_fat là hợp lý.
+
+* Hàm đánh giá đa lớp
+```{r}
+# Gọi hàm đánh giá
+results <- eval_multi_class(conf_matrix_qda)
+
+# Hiển thị kết quả đánh giá
+print("Evaluation Metrics:")
+print(results)
+```
+
+Độ chính xác tổng thể của mô hình đạt 67.29%, phản ánh hiệu suất khá tốt trong việc phân loại dữ liệu. Macro Precision, Recall, và F1-Score lần lượt đạt 67.29%, 68.27%, và 67.66%, cho thấy sự nhất quán giữa các chỉ số tổng thể. Xét từng lớp, lớp A và D có F1-Score cao (lần lượt là 75.39% và 80.25%), thể hiện khả năng phân loại tốt. Trong khi đó, lớp B có F1-Score thấp nhất (54.46%), cho thấy mô hình gặp khó khăn trong việc phân biệt lớp này. Lớp C có F1-Score trung bình (60.56%), phản ánh hiệu suất phân loại ổn định hơn. Giá trị Kappa đạt 0.56, chỉ ra rằng mô hình có mức độ phù hợp khá cao so với một mô hình dự đoán ngẫu nhiên.
+
+* Vẽ biểu đồ tương quan cho ma trận nhầm lẫn
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Heatmap ma trận nhầm lẫn
+conf_matrix <- melt(as.matrix(conf_matrix_qda))
+ggplot(conf_matrix, aes(x = Predicted, y = Actual, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value), color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted", y = "Actual")
+```
+
+Heatmap của ma trận nhầm lẫn cho thấy mô hình hoạt động tốt nhất trên Class A và Class D, với số lượng phân loại đúng lần lượt là 772 và 717. Tuy nhiên, vẫn xảy ra nhầm lẫn đáng kể, đặc biệt giữa Class A với Class B (239 mẫu nhầm) và giữa Class B với Class C (232 mẫu nhầm). Class B và Class C có sự nhầm lẫn lẫn nhau khá nhiều, cho thấy các đặc trưng phân biệt giữa hai lớp này chưa rõ ràng. Điều này có thể là nguyên nhân dẫn đến sự chênh lệch trong hiệu suất phân loại giữa các lớp.
+
+## RandomForest
+
+Qua việc đọc slide và tìm hiểu tài liệu, nhóm em thấy rằng phương pháp phân nhóm khi sử dụng model "RandomForest" phù hợp với bài toán (có biến định tính lẫn biến định lương, nhiều biến đầu vào,...).
+
+* Huấn luyện mô hình Random Forest
+```{r}
+library(randomForest)
+# Xây dựng mô hình Random Forest với tất cả các biến
+rf_model <- randomForest(class ~ ., data = train_data, ntree = 500, mtry = 3, importance = TRUE)
+
+# In kết quả mô hình
+print(rf_model)
+```
+
+* Dự đoán và đánh giá trên tập kiểm tra
+```{r}
+# Dự đoán
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Đánh giá mô hình
+conf_matrix <- table(Predicted = rf_predictions, Actual = test_data$class)
+print(conf_matrix)
+
+# Tính độ chính xác
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", accuracy))
+
+```
+
+* Hàm đánh giá đa lớp
+```{r}
+# Gọi hàm đánh giá
+results <- eval_multi_class(conf_matrix)
+
+# Hiển thị kết quả đánh giá
+print("Evaluation Metrics:")
+print(results)
+```
+
+Mô hình có khả năng dự đoán chính xác 74.17% ở mức khá và có thể chấp nhận được. Nhìn vào Precision Recall, F1 và Accuracy các chỉ số khá là tương đương nhau chứng tỏ hiệu suất mô hình khá ổn định. Giá trị Kappa là 0.655 tuy không cao nhưng cũng có thể chấp nhận được đối với mô hình khi phân loại trong bài toán trên. Phân tích từng lớp cho thấy khả năng phân loại hiệu suất A và D khá tốt nhưng ở lớp B và C thì giá trị khá thấp ( có thể do nhiều nguyên nhân như dữ liệu dành cho lớp B và C chưa đủ tốt).
+
+* Kiểm tra sự quan trọng của các biến đầu vào
+```{r}
+importance(rf_model)
+```
+
+Dựa trên kết quả kiểm tra mức độ quan trọng của các biến, các biến "diastolic", "systolic", "height_cm" và "gender" đều không có tác động đáng kể hoặc ảnh hưởng rất ít đến hiệu suất của mô hình Random Forest và các mô hình khác trước đó. Do đó, quyết định được đưa ra là loại bỏ 4 biến này nhằm giảm sự phức tạp của mô hình, qua đó cải thiện hiệu quả tính toán và tăng khả năng tổng quát hóa trên dữ liệu mới.
+
+* Thử nghiệm với việc bỏ 4 biến "diastolic" , "systolic" , "gender" và "height_cm"
+```{r}
+rf_model1 <- randomForest(class ~ age  + weight_kg + body_fat + grip_force + sit_and_bend_forward_cm + sit_ups_counts+ broad_jump_cm ,
+                          data = train_data, ntree = 500, mtry = 3, importance = TRUE)
+print(rf_model)
+```
+
+* Dự đoán trên tập test
+```{r}
+# Dự đoán
+rf_predictions <- predict(rf_model, newdata = test_data)
+
+# Đánh giá mô hình
+conf_matrix <- table(Predicted = rf_predictions, Actual = test_data$class)
+print(conf_matrix)
+
+# Tính độ chính xác
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", accuracy))
+
+```
+
+* Hàm đánh giá tổng hợp
+```{r}
+# Gọi hàm đánh giá
+results <- eval_multi_class(conf_matrix)
+
+# Hiển thị kết quả đánh giá
+print("Evaluation Metrics:")
+print(results)
+```
+
+* Vẽ biểu đồ tương quan cho ma trận nhầm lẫn
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Heatmap ma trận nhầm lẫn
+conf_matrix <- melt(as.matrix(conf_matrix_qda))
+ggplot(conf_matrix, aes(x = Predicted, y = Actual, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = value), color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted", y = "Actual")
+```
+
+Dựa vào các hệ số đánh giá mô hình dự đoán thì kết quả sau khi bỏ 4 biến đầu vào không ảnh hưởng đến mô hình. Vì vậy việc bỏ đi các biến trên là hoàn toàn phù hợp.
+
+# Kết Luận
+
+Qua việc đánh giá hiệu suất của mô hình và lựa chọn ra các biến có sự ảnh hưởng mạnh mẽ tới biến phân loại class thì ta có thể kết luận rằng:
+
+-   2 biến diastolic và systolic thật sự không ảnh hưởng quá nhiều đến hiệu suất của mô hình, 3 biến height_cm, body_fat và gender có ảnh hưởng một phần nhỏ nhưng không đáng kể nên có thể loại bỏ. Vậy 5 biến này là các biến không ảnh hưởng tới việc phân loại các đối tượng trong class.
+
+-   Các biến còn lại như biến sit_ups_counts, broad_jump_cm và age là những biến có ảnh hưởng mạnh mẽ nhất tới việc phân loại.
+:::
